@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🦍 WSB Radar</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d0d0f;
+    color: #e5e7eb;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+  }
+
+  /* ── Header ── */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid #1f1f23;
+  }
+  #header h1 { font-size: 18px; font-weight: bold; letter-spacing: -0.5px; color: #fff; }
+  #header h1 span { color: #6b7280; font-size: 11px; font-weight: normal; margin-left: 10px; border: 1px solid #374151; padding: 2px 6px; border-radius: 3px; }
+
+  #status-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    color: #4b5563;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #22c55e; display: inline-block; margin-right: 4px;
+  }
+  .dot.scanning { background: #eab308; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  #scan-btn {
+    background: transparent;
+    border: 1px solid #374151;
+    color: #9ca3af;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+  }
+  #scan-btn:hover { border-color: #6b7280; color: #e5e7eb; }
+  #scan-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Filter bar ── */
+  #filterbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid #1f1f23;
+    flex-wrap: wrap;
+  }
+  #search {
+    background: #111113;
+    border: 1px solid #2d2d33;
+    color: #e5e7eb;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    width: 130px;
+  }
+  #search:focus { outline: none; border-color: #4b5563; }
+  #search::placeholder { color: #374151; }
+
+  .filter-group { display: flex; align-items: center; gap: 6px; }
+  .filter-label { font-size: 10px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .btn-group { display: flex; gap: 4px; }
+  .filter-btn {
+    background: transparent;
+    border: 1px solid #1f1f23;
+    color: #4b5563;
+    padding: 3px 9px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: #374151; color: #9ca3af; }
+  .filter-btn.active { border-color: #4b5563; background: #1f1f23; color: #e5e7eb; }
+
+  /* ── Table ── */
+  #table-wrap { overflow-x: auto; padding: 0 20px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead tr {
+    font-size: 10px;
+    color: #4b5563;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid #1f1f23;
+  }
+  th { padding: 10px 8px; text-align: right; cursor: pointer; white-space: nowrap; user-select: none; }
+  th:first-child, th:nth-child(2), th:nth-child(3) { text-align: left; }
+  th:hover { color: #9ca3af; }
+  th.sorted { color: #e5e7eb; }
+
+  tbody tr {
+    border-bottom: 1px solid #111113;
+    transition: background 0.1s;
+  }
+  tbody tr:hover { background: #111113; }
+  tbody tr.breakout { background: rgba(249,115,22,0.04); }
+
+  td { padding: 10px 8px; text-align: right; white-space: nowrap; }
+  td:first-child, td:nth-child(2), td:nth-child(3) { text-align: left; }
+
+  .ticker-sym {
+    font-weight: bold;
+    font-size: 15px;
+    color: #fff;
+  }
+
+  /* Score bar */
+  .score-wrap { display: flex; align-items: center; gap: 7px; }
+  .score-bar-bg {
+    width: 70px; height: 4px;
+    background: #1f1f23;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .score-bar-fill { height: 100%; border-radius: 2px; }
+  .score-num { font-weight: bold; font-size: 13px; min-width: 26px; }
+  .s-hot  { color: #f97316; }
+  .s-mom  { color: #22c55e; }
+  .s-ear  { color: #eab308; }
+  .s-dead { color: #4b5563; }
+  .s-exit { color: #ef4444; }
+  .s-noise{ color: #374151; }
+
+  /* Signal badge */
+  .badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .badge-hot  { color: #f97316; background: rgba(249,115,22,0.08); border-color: rgba(249,115,22,0.25); }
+  .badge-mom  { color: #22c55e; background: rgba(34,197,94,0.08);  border-color: rgba(34,197,94,0.25); }
+  .badge-ear  { color: #eab308; background: rgba(234,179,8,0.08);  border-color: rgba(234,179,8,0.25); }
+  .badge-dead { color: #4b5563; background: transparent;           border-color: #1f1f23; }
+  .badge-exit { color: #ef4444; background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.25); }
+  .badge-noise{ color: #374151; background: transparent;           border-color: #111; }
+
+  .green  { color: #22c55e; }
+  .red    { color: #ef4444; }
+  .dim    { color: #374151; }
+  .muted  { color: #4b5563; }
+
+  .vol-spike { color: #f97316; font-weight: bold; }
+
+  .sub-tag {
+    font-size: 9px;
+    color: #374151;
+    border: 1px solid #1f1f23;
+    padding: 1px 4px;
+    border-radius: 2px;
+    margin-right: 2px;
+  }
+
+  /* States */
+  #loading, #empty, #error-msg {
+    text-align: center;
+    padding: 80px 20px;
+    color: #374151;
+    font-size: 13px;
+  }
+  #error-msg { color: #7f1d1d; }
+  .spinner { display: inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+  #disclaimer {
+    position: fixed;
+    bottom: 8px; right: 14px;
+    font-size: 9px;
+    color: #1f1f23;
+    letter-spacing: 0.03em;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <h1>🦍 WSB RADAR <span>MEME STOCK SCANNER</span></h1>
+  <div id="status-row">
+    <span><span class="dot" id="dot"></span><span id="status-txt">idle</span></span>
+    <span id="ticker-count">— tickers</span>
+    <span id="last-scan">—</span>
+    <button id="scan-btn" onclick="runScan()">↻ Scan Now</button>
+  </div>
+</div>
+
+<!-- Filters -->
+<div id="filterbar">
+  <input id="search" type="text" placeholder="Search ticker…" oninput="renderTable()" />
+
+  <div class="filter-group">
+    <span class="filter-label">Sort</span>
+    <div class="btn-group" id="sort-btns">
+      <button class="filter-btn active" data-sort="score"    onclick="setSort(this)">Meme Score</button>
+      <button class="filter-btn"        data-sort="mentions" onclick="setSort(this)">Most Mentioned</button>
+      <button class="filter-btn"        data-sort="velocity" onclick="setSort(this)">Fastest Growing</button>
+      <button class="filter-btn"        data-sort="subs"     onclick="setSort(this)">Cross-Sub</button>
+    </div>
+  </div>
+
+  <div class="filter-group">
+    <span class="filter-label">Signal</span>
+    <div class="btn-group" id="signal-btns">
+      <button class="filter-btn active" data-sig=""        onclick="setSig(this)">All</button>
+      <button class="filter-btn"        data-sig="hot"     onclick="setSig(this)">🔥 Breakout</button>
+      <button class="filter-btn"        data-sig="mom"     onclick="setSig(this)">📈 Momentum</button>
+      <button class="filter-btn"        data-sig="ear"     onclick="setSig(this)">👀 Early</button>
+      <button class="filter-btn"        data-sig="exit"    onclick="setSig(this)">🚨 Exit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Table -->
+<div id="table-wrap">
+  <div id="loading"><span class="spinner">⟳</span> Loading…</div>
+  <div id="empty"   style="display:none">No tickers found. Try scanning again.</div>
+  <div id="error-msg" style="display:none"></div>
+  <table id="main-table" style="display:none">
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>Meme Score</th>
+        <th>Signal</th>
+        <th>Mentions</th>
+        <th>Sentiment</th>
+        <th>Upvotes</th>
+        <th>Subs</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div id="disclaimer">NOT FINANCIAL ADVICE · FOR INFORMATIONAL USE ONLY</div>
+
+<script>
+// ─────────────────────────────────────────────────
+// Config — Railway backend
+// ─────────────────────────────────────────────────
+const API_BASE = 'https://wsb-scanner-production-cff3.up.railway.app';
+
+// ─────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────
+let tickerData = [];
+let sortKey    = 'score';
+let sigFilter  = '';
+let lastScanTime = null;
+
+// ─────────────────────────────────────────────────
+// Core fetch from Railway backend
+// ─────────────────────────────────────────────────
+async function runScan() {
+  const btn  = document.getElementById('scan-btn');
+  const dot  = document.getElementById('dot');
+  const stxt = document.getElementById('status-txt');
+
+  btn.disabled = true;
+  dot.className = 'dot scanning';
+  stxt.textContent = 'loading…';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('main-table').style.display = 'none';
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('error-msg').style.display = 'none';
+
+  try {
+    const [tickerRes, statusRes] = await Promise.all([
+      fetch(`${API_BASE}/api/tickers?limit=100`, { signal: AbortSignal.timeout(15000) }),
+      fetch(`${API_BASE}/api/status`,            { signal: AbortSignal.timeout(15000) }),
+    ]);
+
+    if (!tickerRes.ok) throw new Error(`API returned ${tickerRes.status}`);
+
+    const tickerJson = await tickerRes.json();
+    const statusJson = await statusRes.json().catch(() => ({}));
+
+    tickerData = tickerJson.tickers || [];
+    lastScanTime = new Date();
+
+    const scanning = statusJson.scanning || false;
+    dot.className = scanning ? 'dot scanning' : 'dot';
+    stxt.textContent = scanning ? 'scanning…' : 'live';
+
+  } catch (e) {
+    console.error('Fetch error:', e);
+    stxt.textContent = 'error';
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'block';
+    document.getElementById('error-msg').textContent =
+      '⚠ Could not reach the backend. Make sure Railway is running.';
+    btn.disabled = false;
+    return;
+  }
+
+  btn.disabled = false;
+  renderTable();
+}
+
+// ─────────────────────────────────────────────────
+// Render — uses data from Railway backend
+// ─────────────────────────────────────────────────
+function renderTable() {
+  const search = document.getElementById('search').value.trim().toUpperCase();
+
+  let rows = [...tickerData];
+
+  // Map backend signal_tag to key for filtering
+  function sigKey(tag) {
+    if (!tag) return 'noise';
+    if (tag.includes('Breakout')) return 'hot';
+    if (tag.includes('Momentum Building')) return 'mom';
+    if (tag.includes('Early')) return 'ear';
+    if (tag.includes('Exit')) return 'exit';
+    if (tag.includes('Dead')) return 'dead';
+    return 'noise';
+  }
+
+  if (search) rows = rows.filter(r => r.ticker.includes(search));
+  if (sigFilter) rows = rows.filter(r => sigKey(r.signal_tag) === sigFilter);
+
+  rows.sort((a, b) => {
+    if (sortKey === 'mentions') return (b.mentions_24h || 0) - (a.mentions_24h || 0);
+    if (sortKey === 'velocity') return (b.mentions_1h  || 0) - (a.mentions_1h  || 0);
+    if (sortKey === 'subs')     return ((b.sources||[]).length) - ((a.sources||[]).length);
+    return (b.meme_score || 0) - (a.meme_score || 0);
+  });
+
+  document.getElementById('ticker-count').textContent = `${rows.length} tickers`;
+  document.getElementById('last-scan').textContent =
+    lastScanTime ? `Updated: ${timeSince(lastScanTime)}` : '—';
+  document.getElementById('loading').style.display = 'none';
+
+  if (rows.length === 0) {
+    document.getElementById('empty').style.display = 'block';
+    document.getElementById('main-table').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('main-table').style.display = 'table';
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = rows.map(r => {
+    const score = r.meme_score || 0;
+    const tag   = r.signal_tag || '📊 Noise';
+    const key   = sigKey(tag);
+
+    const scoreColor =
+      score >= 80 ? 's-hot' :
+      score >= 60 ? 's-mom' :
+      score >= 40 ? 's-ear' :
+      key === 'dead' ? 's-dead' : 's-noise';
+
+    const barColor =
+      score >= 80 ? '#f97316' :
+      score >= 60 ? '#22c55e' :
+      score >= 40 ? '#eab308' : '#374151';
+
+    const sent = r.sentiment_avg || 0;
+    const sentLabel =
+      sent >  0.3 ? '<span class="green">Bullish</span>' :
+      sent >  0   ? '<span class="muted">Lean Bull</span>' :
+      sent > -0.3 ? '<span class="muted">Neutral</span>' :
+                    '<span class="red">Bearish</span>';
+
+    const subsHtml = (r.sources || []).map(s =>
+      `<span class="sub-tag">r/${s}</span>`
+    ).join('');
+
+    return `
+      <tr class="${score >= 80 ? 'breakout' : ''}">
+        <td><span class="ticker-sym">${r.ticker}</span></td>
+        <td>
+          <div class="score-wrap">
+            <div class="score-bar-bg">
+              <div class="score-bar-fill" style="width:${score}%;background:${barColor}"></div>
+            </div>
+            <span class="score-num ${scoreColor}">${score}</span>
+          </div>
+        </td>
+        <td><span class="badge badge-${key}">${tag}</span></td>
+        <td>${r.mentions_24h || 0}</td>
+        <td>${sentLabel}</td>
+        <td>${fmtNum(r.upvote_sum || 0)}</td>
+        <td>${subsHtml}</td>
+      </tr>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────
+// UI helpers
+// ─────────────────────────────────────────────────
+function setSort(btn) {
+  document.querySelectorAll('#sort-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  sortKey = btn.dataset.sort;
+  renderTable();
+}
+
+function setSig(btn) {
+  document.querySelectorAll('#signal-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  sigFilter = btn.dataset.sig;
+  renderTable();
+}
+
+function timeSince(date) {
+  const s = Math.floor((Date.now() - date) / 1000);
+  if (s < 60)   return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  return `${Math.floor(s/3600)}h ago`;
+}
+
+function fmtNum(n) {
+  if (n >= 1_000_000) return (n/1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return (n/1_000).toFixed(0) + 'K';
+  return String(n);
+}
+
+// ─────────────────────────────────────────────────
+// Auto-refresh every 5 minutes
+// ─────────────────────────────────────────────────
+runScan();
+setInterval(runScan, 5 * 60 * 1000);
+setInterval(() => {
+  if (lastScanTime) {
+    document.getElementById('last-scan').textContent = `Last scan: ${timeSince(lastScanTime)}`;
+  }
+}, 10_000);
+</script>
+</body>
+</html>
