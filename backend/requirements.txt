@@ -1,0 +1,6 @@
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+praw==7.7.1
+yfinance==0.2.40
+nltk==3.8.1
+python-dotenv==1.0.1
