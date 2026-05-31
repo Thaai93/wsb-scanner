@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .aggregator import run_aggregation
 from .db import get_conn, init_db
-from .scraper import scan_once, _build_reddit, SCAN_INTERVAL
+from .scraper import scan_once, SCAN_INTERVAL
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +46,10 @@ _state = {
 
 def _scraper_loop():
     """Runs in a background thread."""
-    try:
-        reddit = _build_reddit()
-    except Exception as e:
-        logger.error("Reddit init failed: %s — set REDDIT_* env vars", e)
-        return
-
     while True:
         try:
             _state["scanning"] = True
-            scan_once(reddit)
+            scan_once()
             _state["last_scan"] = datetime.now(timezone.utc).isoformat()
         except Exception as e:
             logger.error("Scraper error: %s", e)
@@ -180,8 +174,7 @@ def trigger_scan():
     """Manually trigger one scrape + aggregate cycle (dev only)."""
     def _run():
         try:
-            reddit = _build_reddit()
-            scan_once(reddit)
+            scan_once()
             results = run_aggregation()
             _state["ticker_cache"] = results
             _state["last_scan"] = datetime.now(timezone.utc).isoformat()
